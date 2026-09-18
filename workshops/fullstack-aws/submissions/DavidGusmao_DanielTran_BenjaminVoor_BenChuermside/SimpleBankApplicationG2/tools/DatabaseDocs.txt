@@ -1,0 +1,209 @@
+What is stored in the database
+
+
+    Everything the server keeps lives in one MongoDB database inside one Atlas
+    cluster decided by MONGODB_DB in .env.
+
+        simple_bank            the shared demo data - the frontend and the demo
+        simple_bank_<yourname> your own dev data - default to this one
+        simple_bank_test       the test suite, wiped constantly
+
+    Connecting, and what to do when it will not, is the README. The HTTP side is
+    APIDocs.txt. This file is the middle one: what documents exist, what each
+    field means, and which rules the database itself enforces.
+
+    Five collections. bank/mongo_store.py is the only file that writes any of
+    them, and bank/store.py does the same job in memory for the tests and the
+    console demo - see IN-MEMORY PARITY at the end.
+
+    NOTHING HERE STORES A SESSION. Logins are signed JWTs, so the server hands
+    one out and keeps no record of it - there is no tokens or sessions
+    collection, and a test asserts one never reappears. See bank/security.py.
+
+
+Collections
+
+users
+    DESCRIPTION: one document per person, customer or admin. The login identity.
+    DOCUMENT
+        {
+            integer _id,                (from counters, see below)
+            string  name,
+            string  email, unique       (trimmed and lower-cased before storing)
+            string  role,               ("CUSTOMER" or "ADMIN")
+            string  password_hash,      (or null)
+            date    created_at
+        }
+    WRITTEN BY
+        add_user. Nothing updates or deletes a user today.
+    NOTES:
+        password_hash may be null, and such a user cannot log in. The seed roster
+        creates users this way on purpose.
+
+accounts
+    DESCRIPTION: one document per bank account. Holds the authoritative balance.
+    DOCUMENT
+        {
+            integer _id, unique
+            integer user_id,            (the owner, -> users._id)
+            string  account_type,       ("CHECKING" or "SAVINGS")
+            integer balance,            (cents - 123456 is 1,234.56)
+            string  status,             ("ACTIVE" or "FROZEN")
+            date    created_at
+        }
+    WRITTEN BY
+        add_account inserts. save_balance sets balance. save_status sets status.
+        Currently nothing deletes an account.
+    NOTES:
+        balance is the one mutable money field in the database, and the only code
+        that writes it is save_balance, which the service layer calls in the same
+        atomic() block as the ledger entry that explains the change. That is what
+        keeps balance == sum(ledger) true rather than merely hoped for.
+
+        minimumBalance and availableForWithdrawal are not stored. They are read
+        off the account object.
+
+transactions
+    DESCRIPTION: the ledger. One document per entry, append-only.
+    DOCUMENT
+        {
+            integer _id, unique
+            integer account_id,           (Of account loosing money)
+            string  txn_type,             (DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT)
+            integer amount,               (cents, always positive)
+            string  client_txn_id, unique (or null)
+            date    created_at,
+            integer adjusted_by,          (admin adjustments only - see NOTES)
+            string  reason                (admin adjustments only)
+        }
+    WRITTEN BY
+        add_transaction. Intentionally nothing else.
+    NOTES:
+        adjusted_by and reason are absent from ordinary documents rather than
+        present and null. They are written only by an admin adjustment, so their
+        presence is itself the mark that an entry was not a customer's own
+        deposit. The audit log also records admin adjustments.
+
+        The unique index on client_txn_id is the idempotency guarantee, enforced
+        by the database rather than by a check in Python. It is partial because
+        most entries have no client id, and without the filter they would all
+        collide on a shared null. A duplicate insert becomes DuplicateTransaction,
+        which the API reports as a failure, not a silent no-op.
+
+        A transfer is two documents: a TRANSFER_OUT on the source and a
+        TRANSFER_IN on the destination, written inside one atomic() block.
+
+        The history index matches how the ledger is actually read - one account,
+        newest first - so a transaction page does not scan the collection.
+
+        ledger_sum() adds an account's entries in the database with a $group
+        aggregation, signing each one by whether its txn_type is in CREDIT_TYPES.
+        That total is what /api/admin/reconciliation compares against the stored
+        balance. Integer arithmetic, so the comparison is exact.
+
+counters
+    DESCRIPTION: the id sequences. This is AUTO_INCREMENT, written out.
+    DOCUMENT
+        {
+            string  _id,                ("users", "accounts", "transactions", "audit_log")
+            integer seq                 (the last number handed out)
+        }
+    INDEXES
+        (none beyond _id)
+    WRITTEN BY
+        _next_id, via find_one_and_update with $inc and upsert.
+    NOTES:
+        find_one_and_update is atomic on its own, so two requests cannot be given
+        the same number even without a transaction around them.
+
+        And there deliberately is not one. _next_id runs outside atomic() on
+        purpose: inside it, every request that creates a record would queue behind
+        every other one on a single counter document, including requests for
+        completely unrelated accounts.
+
+        The cost of that is the same as it is in SQL. A request that rolls back
+        has already taken its number, so the numbering has gaps. A gap is
+        harmless. Reusing a number would not be.
+
+audit_log
+    DESCRIPTION: who did what to which account, and why. Admin actions only.
+    DOCUMENT
+        {
+            integer _id,
+            integer actor_user_id,      (the admin who did it, -> users._id)
+            string  action,             (FREEZE, UNFREEZE, ADJUST_CREDIT, ADJUST_DEBIT)
+            integer account_id,         (-> accounts._id, may be null)
+            string  reason,
+            date    created_at
+        }
+    INDEXES
+        (none beyond _id)
+    WRITTEN BY
+        add_audit_entry. Append-only: every freeze, unfreeze and adjustment adds
+        one row and nothing removes one.
+    NOTES:
+        reason is the admin's own words and is required by the API at 10
+        characters or more. It is the field that makes the log worth keeping.
+
+_connection_check
+    DESCRIPTION: not application data. tools/check_mongo.py inserts a probe
+                 document here, proves a two-document transaction rolls back, and
+                 drops the collection. If you find it in Atlas, a check run was
+                 interrupted; it is safe to delete.
+
+
+Conventions
+
+    IDS
+        Every _id is a plain integer taken from counters, not an ObjectId. So the
+        number in the URL, the number in the JSON and the number in Atlas's data
+        browser are the same number, and a bug report that says "account 7" can be
+        looked up directly.
+
+        The one exception is counters itself, whose _id is the name of the
+        sequence.
+
+    MONEY IS AN INTEGER NUMBER OF CENTS
+        Every stored monetary field is a whole number of cents. 1,234.56 is
+        123456. BSON has a 64-bit integer type and a Python int maps onto it
+        exactly, so no amount is ever written as a Double and no balance is ever
+        the result of floating-point addition.
+
+        tools/check_mongo.py asserts this rather than assuming it: check 6 writes
+        an integer, reads it back, and fails if it returns as anything but an int.
+        The same rule on the wire is in APIDocs.txt under MONEY IS AN INTEGER
+        NUMBER OF CENTS.
+
+    DATES
+        Timezone-aware UTC datetimes, stored as BSON dates. The client is opened
+        with tz_aware=True, so they come back in UTC rather than as naive values
+        that would silently be read as local time.
+
+    ERRORS
+        No driver exception leaves mongo_store.py. Each one becomes a domain error
+        the controller already knows how to answer:
+
+            ConnectionFailure               -> StorageUnavailable   (503)
+            write conflict (code 112, or a
+              TransientTransactionError)    -> ConcurrentUpdate     (409)
+            duplicate key on users.email    -> EmailAlreadyUsed
+            duplicate key on client_txn_id  -> DuplicateTransaction
+
+        Nothing above the store imports pymongo, which is what lets the same
+        service layer run against the in-memory store unchanged.
+
+    THE INVARIANT
+        For every account: balance == sum of its transactions' signed amounts.
+
+    RESET
+        MongoStore.reset() drops all five collections and rebuilds the indexes. It
+        is what server.py --reset and the integration tests use, and it destroys
+        everything in whichever database MONGODB_DB names.
+
+        server.py refuses to --reset the shared simple_bank database unless
+        --force is also given. The test suite always uses simple_bank_test,
+        whatever MONGODB_DB says.
+
+        ensure_indexes() runs on every MongoStore construction and is safe to
+        repeat, so a fresh database gets its collections and indexes on first
+        connect without a separate migration step.

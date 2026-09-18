@@ -1,0 +1,1161 @@
+/* Theme tokens and the small set of shared styles.
+ *
+ * The palette is Citi's: deep navy, a brighter blue for links, and the red from
+ * the arc over the "t". Colours only - we do not use Citi's logo, wordmark or
+ * name anywhere, because a banking page carrying a real bank's marks is a
+ * different thing from one borrowing its palette.
+ *
+ * Every ratio below was computed, not eyeballed. WCAG wants 4.5:1 for body text
+ * and 3:1 for the border of anything you can interact with - and this app is
+ * almost entirely form fields, so that second number is the one that matters.
+ */
+
+:root {
+  /* Light is the default. The dark block far below only takes over when the
+   * operating system asks for it, or when somebody picks it from the nav.
+   * Declaring it here as well as implying it is what makes form controls,
+   * scrollbars and text fields render light rather than guessing. */
+  color-scheme: light;
+
+  /* brand
+   *
+   * Two brand tokens, not one, and the distinction is load-bearing: --navy is a
+   * FILL that white text sits on, --brand-ink is the same brand colour used as
+   * TEXT. A colour bright enough to work as a button almost never clears 4.5:1
+   * as body text, and in dark mode the two move in opposite directions - the
+   * fill stays dark enough for white, the ink gets lighter. One token for both
+   * is what makes a dark mode unreadable. */
+  --navy: #003b70;         /* 11.29:1 with white  - nav, primary buttons */
+  --brand-ink: #003b70;    /* 11.29:1 on surface  - headings */
+
+  /* The staff red, as INK rather than as a fill. Kept at :root and not inside
+   * .theme-admin because the audit log also appears on an admin's home page,
+   * which is not inside that class - the action labels have to be readable
+   * there too. Themed below, which is the whole reason it is a token. */
+  --admin-ink: #9e1b13;          /*  8.02:1 on surface - staff headings, audit actions */
+  --admin-bg: #fdf6f5;
+  --admin-field-border: #8a6b68; /*  4.79:1 on surface, past the 3:1 minimum */
+  --blue: #056dae;         /* 5.52:1 both ways    - links, focus rings */
+  --red: #d9261c;          /*  4.95:1 with white  - errors, debits */
+  --green: #0a7d3f;        /*  5.23:1 on white    - credits */
+  --danger: #9e1b13;       /*  8.02:1 with white  - the admin theme */
+
+  /* surfaces and text */
+  --bg: #e6ebf1;           /* the page behind the cards */
+  --surface: #ffffff;
+  --text: #1a1d21;         /* 16.91:1 on surface, 14.11:1 on bg */
+  --muted: #5c6672;        /*  5.84:1 on surface,  4.87:1 on bg */
+  --label: #33404f;        /* 10.05:1 on surface - field labels, which say what
+                              a field is for and were the faintest text here */
+
+  /* ============================ SPACING: change it here ====================
+   * Every gap and pad on the site is one of these five, so widening the whole
+   * layout is one number rather than forty. They step roughly x1.5 each time,
+   * which is what stops a page ending up with 13px next to 14px next to 16px.
+   *
+   *   --s1  inside a control, between an icon and its text
+   *   --s2  between fields in a form
+   *   --s3  the default gap between cards, and card padding
+   *   --s4  between one section of a page and the next
+   *   --s5  around something meant to stand alone, like About us
+   *
+   * --page-w is how wide the content runs before it stops. The nav uses it too,
+   * so the brand lines up with the page below instead of sitting on the edge.
+   */
+  --s1: 0.5rem;
+  --s2: 0.75rem;
+  --s3: 1.25rem;
+  --s4: 2rem;
+  --s5: 3.5rem;
+  --page-w: 1100px;
+
+  /* Two borders on purpose. The decorative one divides cards and has no
+   * contrast requirement; the field one outlines things you can click or type
+   * in and must clear 3:1 (WCAG 1.4.11). */
+  --border: #dde1e7;
+  --field-border: #7b8794; /* 3.66:1 on surface, 3.38:1 on bg */
+
+  /* Surfaces that are neither the page nor a card. These were literals until
+   * dark mode needed a second answer for each of them. */
+  --hero-bg: #dbeafe;       /* body text on this: 13.86:1 */
+  --stripe-a: #dfe5ec;      /* ledger, odd rows  */
+  --stripe-b: #f2f5f8;      /* ledger, even rows */
+  --ledger-credit: #056d3a; /* 5.09:1 on the worse stripe */
+  --ledger-debit: #b3150b;  /* 5.47:1 on the worse stripe */
+  --badge-bg: #fde2e1;      /* the FROZEN chip */
+  --badge-ink: #9f1239;     /* 6.39:1 on that chip */
+
+  /* The faint angular shapes on the page background. */
+  --facet: rgb(5 109 174 / 13%);
+
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+}
+
+* { box-sizing: border-box; }
+
+/* Large, very faint angular facets over the flat page colour.
+ *
+ * Each `conic-gradient` fans wedges out from one point, so two of them anchored
+ * off opposite corners give big triangular planes rather than stripes - the
+ * same idea as light catching a folded surface. The soft radial wash underneath
+ * keeps it from looking like flat paper with shapes drawn on.
+ *
+ * They are faint on purpose, and that is not timidity: the background sits
+ * behind account balances, and anything with real contrast or a hard edge
+ * starts competing with the numbers. `fixed` so the facets stay put while the
+ * page scrolls rather than sliding around behind the content.
+ */
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    /* top left, fanning down and across */
+    conic-gradient(from 165deg at 2% -2%,
+      transparent 0 14deg, var(--facet) 14deg 38deg,
+      transparent 38deg 56deg, var(--facet) 56deg 72deg, transparent 72deg),
+    /* top right */
+    conic-gradient(from 25deg at 101% 4%,
+      transparent 0 22deg, var(--facet) 22deg 46deg,
+      transparent 46deg 70deg, var(--facet) 70deg 96deg, transparent 96deg),
+    /* middle left, so the centre of a long page is not empty */
+    conic-gradient(from 285deg at -4% 52%,
+      transparent 0 16deg, var(--facet) 16deg 44deg, transparent 44deg),
+    /* bottom right */
+    conic-gradient(from 195deg at 96% 96%,
+      transparent 0 20deg, var(--facet) 20deg 48deg,
+      transparent 48deg 72deg, var(--facet) 72deg 92deg, transparent 92deg),
+    /* bottom centre */
+    conic-gradient(from 110deg at 40% 104%,
+      transparent 0 26deg, var(--facet) 26deg 54deg, transparent 54deg),
+    radial-gradient(60rem 30rem at 12% -8%, rgb(5 109 174 / 10%), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* Never suppress this. A keyboard-only user has to be able to complete a
+ * deposit, and that means always being able to see where they are. */
+:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ frame */
+
+/* Sticky, so the way to anywhere else is always on screen. z-index because the
+ * coloured account cards below it create their own stacking contexts and would
+ * otherwise scroll over the top of it. */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--navy);
+  color: #fff;
+}
+
+/* The bar is full width; its contents are not. Without this the brand sits hard
+ * against the window edge while everything below it starts 100px in. */
+.nav-inner {
+  max-width: var(--page-w);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s2) var(--s4);
+}
+
+.nav-brand { font-weight: 700; font-size: 1.1rem; color: #fff; text-decoration: none; }
+.nav-links { display: flex; gap: var(--s3); }
+.nav a { color: #fff; text-decoration: none; }
+.nav a.active { text-decoration: underline; text-underline-offset: 4px; }
+.nav-user { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
+
+.page {
+  max-width: var(--page-w);
+  margin: var(--s4) auto 0;
+  /* Generous room underneath. Without it the last section - usually About us,
+   * which grows when opened - ends flush against the bottom of the window. */
+  padding: 0 var(--s4) calc(var(--s5) * 2);
+}
+
+/* ---------------------------------------------------------------- pieces */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.narrow { max-width: 420px; margin-inline: auto; }
+
+h1 { font-size: 1.4rem; margin-top: 0; color: var(--brand-ink); }
+
+a { color: var(--blue); }
+
+form { display: flex; flex-direction: column; gap: var(--s2); }
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--label);
+}
+
+input, select {
+  padding: 0.5rem;
+  border: 1px solid var(--field-border);
+  border-radius: 4px;
+  font-size: 1rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* 44px minimum target (WCAG 2.5.8). Nobody notices when it is right. */
+button {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--navy);
+  border-radius: 4px;
+  background: var(--navy);
+  color: #fff;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+/* Darkens whatever --navy currently is, rather than naming one dark blue.
+ * Hardcoding #00294e turned a cyan button navy in dark mode. */
+button:hover:not(:disabled) { background: color-mix(in srgb, var(--navy) 80%, #000); }
+/* A disabled button stays the header colour. Every attempt at giving it its own
+ * shade produced something that read as a second, wrong brand colour, so the
+ * only thing that changes is the label and the cursor. */
+button:disabled,
+button:disabled:hover {
+  background: var(--navy);
+  border-color: var(--navy);
+  /* 88%, not lower: on the dark theme's cyan, anything fainter drops the label
+   * under 4.5:1. At 88% it is 9.05:1 on light and 4.53:1 on dark. */
+  color: rgb(255 255 255 / 88%);
+  cursor: default;
+}
+
+.account-list { list-style: none; padding: 0; }
+.account-list li { display: flex; align-items: center; gap: 1rem; }
+
+/* Tabular figures so a column of balances lines up on the decimal point and
+ * does not jitter when one updates. */
+.balance {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Credits and debits carry a sign as well as a colour. Red/green is the most
+ * common colour-vision axis, so colour alone would leave some people with no
+ * signal at all (WCAG 1.4.1). */
+.credit { color: var(--green); }
+.debit { color: var(--red); }
+
+.badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  background: var(--badge-bg);
+  color: var(--badge-ink);
+}
+
+/* -------------------------------------------------- transaction menu */
+
+/* The account on the left, the action picker on the right. wrap so the two
+ * stack instead of squeezing on a narrow screen. */
+.menu-head { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.kind-picker { margin-left: auto; }
+
+.balance-large {
+  font-size: 1.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A form is a column, so a button in it stretches the full width by default.
+ * This row is what puts the submit button at the bottom right. */
+.form-actions { display: flex; justify-content: flex-end; }
+
+.success { color: var(--green); }
+
+.error { color: var(--red); }
+.hint { color: var(--muted); font-size: 0.85rem; }
+
+code { background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
+
+/* ------------------------------------------------- the staff (admin) theme
+ *
+ * Custom properties inherit, so putting this class on an element recolours
+ * everything inside it without a single component knowing about it. That is the
+ * whole mechanism - there is no admin stylesheet. The nav bar wears it whenever
+ * an admin is signed in or the route is under /admin.
+ *
+ * The point is not decoration. You should always be able to tell at a glance
+ * which context you are acting in, because an admin can freeze accounts and
+ * adjust balances.
+ */
+.theme-admin {
+  /* --navy is the FILL white text sits on - the nav bar and buttons - so it
+   * stays dark in both themes: white on it is 8.02:1 either way.
+   *
+   * Everything read AS text maps to the themed tokens above, which is what was
+   * missing: these used to be hard-coded light-mode values, so in dark mode the
+   * headings and the audit actions came out at 1.95:1 on a dark surface. */
+  --navy: #9e1b13;         /* 8.02:1 with white - buttons, nav bar */
+  --brand-ink: var(--admin-ink);
+  --blue: var(--admin-ink);
+  --field-border: var(--admin-field-border);
+  --bg: var(--admin-bg);
+}
+
+
+
+/* -------------------------------------------------------- nav: name + role */
+
+.nav-name { display: flex; align-items: center; gap: 0.4rem; }
+
+.nav-role {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: #fff;
+  color: #9e1b13;
+}
+
+/* ------------------------------------------------------------ home + lists */
+
+.total {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin: 0.25rem 0 0;
+}
+
+.actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+
+.action {
+  display: inline-block;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--navy);
+  border-radius: 6px;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.action:hover { background: color-mix(in srgb, var(--navy) 80%, #000); }
+
+/* Definition list as a two-column detail table. */
+.details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0 0 1.25rem;
+}
+
+.details dt { color: var(--muted); font-size: 0.9rem; }
+.details dd { margin: 0; display: flex; align-items: center; gap: 0.4rem; }
+.details dd .nav-role { background: var(--navy); color: #fff; }
+
+.row { display: flex; gap: 0.5rem; }
+
+button.secondary {
+  background: var(--surface);
+  color: var(--brand-ink);
+  border-color: var(--field-border);
+}
+
+/* ----------------------------------------------- reveal toggle and dialog */
+
+/* The button sits on top of the right-hand end of the field, so the field keeps
+ * its own full width and nothing has to be measured. */
+.secret-field { position: relative; display: flex; }
+.secret-field input { flex: 1; padding-right: 2.75rem; }
+
+/* Visible at rest, not only on hover: a control you cannot see is a control
+ * nobody uses. A left border separates it from the text without boxing it in. */
+.reveal {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  bottom: 1px;
+  width: 2.75rem;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-left: 1px solid var(--field-border);
+  border-radius: 0 4px 4px 0;
+  background: var(--bg);
+  color: var(--muted);
+  line-height: 1;
+}
+
+.reveal:hover { background: color-mix(in srgb, var(--bg) 85%, var(--text)); color: var(--text); }
+
+/* Pressed means the text is showing, so the icon is crossed out. */
+.reveal[aria-pressed='true'] { color: var(--navy); }
+
+/* A native <dialog> comes with no styling and a full-page ::backdrop. */
+dialog {
+  max-width: 26rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  color: var(--text);
+  background: var(--surface);
+}
+
+dialog::backdrop { background: rgb(0 0 0 / 45%); }
+dialog h2 { margin-top: 0; font-size: 1.1rem; color: var(--brand-ink); }
+dialog .row { margin-top: 1rem; flex-wrap: wrap; }
+
+/* ================================================================ home page */
+
+/* One hover rule for everything that should feel pickable, rather than the same
+ * three lines copied onto six selectors. 5% is enough to notice and small
+ * enough not to shove the layout around. */
+.lift {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.lift:hover,
+.lift:focus-visible {
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 18%);
+}
+
+/* Motion that scales things is the kind most likely to make somebody ill, so it
+ * is the kind to drop when they have asked for less of it. The shadow stays,
+ * which keeps the hover readable. */
+@media (prefers-reduced-motion: reduce) {
+  .lift { transition: box-shadow 150ms ease; }
+  .lift:hover, .lift:focus-visible { transform: none; }
+  .about, .about-body, .about-body > div { transition: none; }
+  .about-body > div { opacity: 1; transform: none; }
+  .promo { animation: none; }
+}
+
+/* The pale blue panel behind the two columns. Borderless on purpose - the
+ * colour is what separates it from the page, so an outline as well would be
+ * saying the same thing twice. */
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  padding: var(--s4);
+  border-radius: 12px;
+  background: var(--hero-bg);
+  margin-bottom: var(--s4);
+}
+
+.hero > * { flex: 1 1 20rem; margin-bottom: 0; }
+
+/* Signed in there is no sign-in form beside the offer, so the offer would
+ * stretch the full width and look nothing like it does on the landing page.
+ * This keeps it the same size and puts it in the middle. */
+.hero-solo { justify-content: center; }
+.hero-solo > * { flex: 0 1 34rem; }
+
+/* The gold glow from the sketch. It is a box-shadow rather than an image, so it
+ * follows the card's corners and costs nothing to move.
+ *
+ * The pulse is slow (4s) and shallow, because a fast or high-contrast flash is
+ * both unpleasant and a WCAG problem once it passes three times a second. It is
+ * turned off entirely for anyone who has asked for less motion - see the
+ * reduced-motion block above, which this joins. */
+.promo {
+  position: relative;
+  box-shadow: 0 0 0 2px rgb(250 204 21 / 85%), 0 0 34px 8px rgb(250 204 21 / 55%);
+  animation: glow 4s ease-in-out infinite;
+}
+
+/* Two shadows on each keyframe: a hard ring that draws the edge, and a wide
+ * soft one that is the glow. Animating both together is what makes it read as
+ * light coming off the card rather than a border changing colour. */
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgb(250 204 21 / 70%), 0 0 26px 5px rgb(250 204 21 / 40%);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgb(253 224 71 / 100%), 0 0 46px 14px rgb(250 204 21 / 70%);
+  }
+}
+
+.promo h2 { font-size: 1.05rem; margin: 0 0 var(--s3); color: var(--brand-ink); }
+.promo-inner { margin: 0; background: var(--bg); }
+.promo-inner p { margin: 0 0 0.75rem; }
+
+/* Same fill as the nav bar, white text: 11.29:1. */
+.apply {
+  display: block;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* Email and password side by side while there is room, stacked when there is
+   not. The fields keep the column layout `label` already gives them. */
+.field-row { display: flex; flex-wrap: wrap; gap: var(--s3); }
+.field-row > * { flex: 1 1 12rem; }
+
+.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+}
+
+.checkbox input { width: 1.1rem; height: 1.1rem; accent-color: var(--navy); }
+
+/* ---------------------------------------------------------------- about us */
+
+/* Narrow until opened, then full width. Both the width and the height animate;
+ * the height one is the grid trick below. */
+/* Sits well clear of whatever is above it, so it reads as its own thing rather
+ * than as the last item in the list. */
+.about {
+  max-width: 24rem;
+  margin: var(--s5) auto 0;
+  /* Decelerating curve rather than `ease`: it leaves quickly and settles
+   * slowly, which is what reads as smooth instead of mechanical. The same
+   * curve and duration on every property here, so the width, the height and
+   * the fade finish together rather than in three separate steps. */
+  transition:
+    max-width 900ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Open, it breaks out past the page rail - wider than the content above, which
+ * is what makes the opening feel like an opening. The margin is clamped so it
+ * can never reach the window edge on a narrow screen. */
+.about.open {
+  max-width: none;
+  margin-inline: clamp(-6rem, -4vw, 0rem);
+}
+
+.about-toggle {
+  display: block;
+  width: 100%;
+  padding: 1.5rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border-radius: 12px;
+}
+
+/* `height: auto` cannot be transitioned, and hard-coding a pixel height breaks
+ * the moment the text wraps differently. A grid row going 0fr -> 1fr animates
+ * to exactly the content's height without anybody measuring it. The inner
+ * element needs the overflow, because the row is what is being clipped. */
+.about-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.about.open .about-body { grid-template-rows: 1fr; }
+
+/* The content fades and lifts as the row opens. Without this the cards are
+ * fully drawn from the first frame and simply get cropped less, which is the
+ * part that looked abrupt. Slightly slower than the row, and delayed, so the
+ * space is already there by the time they arrive. */
+.about-body > div {
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-0.5rem);
+  transition: opacity 600ms ease 280ms, transform 600ms ease 280ms;
+}
+
+.about.open .about-body > div { opacity: 1; transform: none; }
+
+/* Four equal columns on one row. A grid rather than flex-wrap, because wrap
+ * would drop the fourth card onto a line of its own the moment things got
+ * tight, which is exactly the layout this is replacing. Below 900px there is
+ * genuinely not room for four, so it becomes two. */
+.team {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s3);
+  list-style: none;
+  padding: 0;
+  margin: var(--s3) 0 0;
+}
+
+@media (max-width: 900px) {
+  .team { grid-template-columns: repeat(2, 1fr); }
+}
+
+.team li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  text-align: center;
+}
+
+.team a { font-size: 0.85rem; word-break: break-word; }
+
+/* Its own layer below the people, shaped like Apply now but wider and shorter. */
+.repo {
+  display: block;
+  width: min(100%, 34rem);
+  margin: var(--s3) auto 0;
+  padding: var(--s2);
+  border-radius: 6px;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* ------------------------------------------------------- account bars */
+
+/* One wide bar per account: what it is on the left, what is in it on the right.
+ *
+ * On the colours. The sketch had pastels, and a pastel cannot carry white text -
+ * the yellow in it sits at 1.3:1 where 4.5:1 is the floor, which is not a near
+ * miss but unreadable. These six are the same idea taken as far as it goes
+ * while white still reads: saturated, distinct from each other, and every one
+ * of them at or above 4.7:1 with white at the LIGHTEST end of its gradient.
+ * The ratio is written next to each.
+ *
+ * The gloss is a diagonal gradient plus a hairline of white along the top edge,
+ * which is what light does on a curved glossy surface. No image.
+ */
+.bars { list-style: none; padding: 0; margin: 0 0 var(--s4); }
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
+  padding: var(--s3) var(--s4);
+  border-radius: 10px;
+  color: #fff;
+  text-decoration: none;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 35%), 0 2px 6px rgb(0 0 0 / 18%);
+}
+
+.bar-type { font-weight: 700; font-size: 1.05rem; }
+
+.bar-balance {
+  margin-left: auto;
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* FROZEN has to be legible on any of the six, so it is a white chip with dark
+ * text rather than a tint of the bar it sits on. */
+.bar .badge { background: #fff; color: #9f1239; }
+
+/* Checking is blue and green; savings is orange and red. The ratio beside each
+ * is white text against the LIGHTEST end of that gradient, which is the end
+ * that has to pass. */
+.bar-c0, .tone-c0 { background: linear-gradient(135deg, #0f766e, #134e4a); }  /* 5.47:1 teal */
+.bar-c1, .tone-c1 { background: linear-gradient(135deg, #047857, #064e3b); }  /* 5.48:1 emerald */
+.bar-c2, .tone-c2 { background: linear-gradient(135deg, #0e7490, #164e63); }  /* 5.36:1 cyan */
+.bar-c3, .tone-c3 { background: linear-gradient(135deg, #1d4ed8, #1e3a8a); }  /* 6.70:1 blue */
+
+.bar-s0, .tone-s0 { background: linear-gradient(135deg, #b45309, #7c2d12); }  /* 5.02:1 amber */
+.bar-s1, .tone-s1 { background: linear-gradient(135deg, #c2410c, #7c2d12); }  /* 5.18:1 orange */
+.bar-s2, .tone-s2 { background: linear-gradient(135deg, #e11d48, #9f1239); }  /* 4.70:1 rose */
+.bar-s3, .tone-s3 { background: linear-gradient(135deg, #b91c1c, #7f1d1d); }  /* 6.47:1 red */
+
+/* ------------------------------------------------------------- profile */
+
+/* The details page was a 420px column of 0.9rem text, which is a lot of
+ * squinting for the one page that exists to be read.
+ *
+ * `margin-inline: auto` is what centres it. A .card is a block, so without it
+ * the max-width just leaves it hugging the left. */
+.profile {
+  max-width: 46rem;
+  margin-inline: auto;
+  padding: var(--s4);
+  font-size: 1.05rem;
+}
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.profile-head h1 { margin: 0; font-size: 1.8rem; color: var(--brand-ink); }
+
+/* A circle, so equal width and height and a radius past half of it. Pushed to
+ * the right edge by the margin rather than by justify-content, so the title
+ * keeps its natural width. */
+.edit-circle {
+  margin-left: auto;
+  width: 4.5rem;
+  height: 4.5rem;
+  flex: none;
+  border-radius: 50%;
+  font-size: 1rem;
+}
+
+/* Each fact in its own box: label left, value right. */
+.detail-rows { margin: 0 0 var(--s3); }
+
+.detail-rows > div {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.detail-rows dt { font-size: 1rem; color: var(--text); font-weight: 600; }
+
+.detail-rows dd {
+  margin: 0 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: right;
+  word-break: break-word;
+}
+
+.profile label { font-size: 1rem; }
+.profile input { font-size: 1.05rem; padding: var(--s2); }
+
+/* ------------------------------------------------------- user search */
+
+.user-search { position: relative; }
+
+.results {
+  list-style: none;
+  margin: var(--s1) 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.results li + li { border-top: 1px solid var(--border); }
+
+/* A full-width button rather than a row with a click handler, so Tab reaches
+   every result and Enter picks one. */
+.results button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  min-height: 0;
+  padding: var(--s2) var(--s3);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.results button:hover { background: var(--bg); }
+.results .no-match { padding: var(--s2) var(--s3); }
+
+.picked {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--field-border);
+  border-radius: 8px;
+}
+
+.picked > div { display: flex; flex-direction: column; }
+.picked button { margin-left: auto; }
+
+/* ------------------------------------------------ the credit card product
+
+   Always the same: blue card, yellow type, yellow glow. It is a different
+   product, not another account of the same kind, so it does not join the
+   six-colour rotation - you should know one on sight.
+
+   Yellow on this blue is 8.40:1, which is well past AA. Yellow on *white*
+   would be about 1.6:1, which is why the fill is not optional here. */
+.bar-credit,
+.tone-credit {
+  background: linear-gradient(135deg, #123a7d, #0b2f6b);
+  color: #facc15;
+  box-shadow: 0 0 0 2px #facc15, 0 0 18px 2px rgb(250 204 21 / 45%);
+}
+
+/* `.lift:hover` sets box-shadow, and box-shadow does not merge - the lift's
+ * grey drop shadow was replacing the gold glow entirely, so hovering the one
+ * card that glows was the one thing that put it out. This restates both: the
+ * glow, brighter, plus the lift's shadow. Specificity beats `.lift:hover`
+ * because it is two classes rather than one. */
+.bar-credit.lift:hover,
+.bar-credit.lift:focus-visible,
+.tone-credit.lift:hover,
+.tone-credit.lift:focus-visible {
+  box-shadow:
+    0 0 0 3px #fde047,
+    0 0 34px 10px rgb(250 204 21 / 75%),
+    0 8px 20px rgb(0 0 0 / 30%);
+}
+
+.bar-credit .bar-balance, .bar-credit .bar-type { color: #facc15; }
+
+/* ------------------------------------------------- account detail card */
+
+/* The whole card in the account's colour, with the rows kept white inside it.
+ * Dark text on a saturated fill is the one thing these colours cannot carry,
+ * so the fill holds the title and the balance and nothing else. */
+.account-card { color: #fff; border: none; }
+
+.account-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s4);
+}
+
+.account-card-head h1 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.account-card-balance {
+  margin-left: auto;
+  font-size: 1.9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rows sit on their own surface so they stay readable. */
+.account-card .detail-rows > div { background: var(--surface); border-color: transparent; }
+.account-card .detail-rows dd { color: var(--text); font-weight: 700; }
+.account-card .detail-rows dt { color: var(--text); font-weight: 600; }
+
+/* Navy fill, white text - and a white edge, which is not decoration. Navy on
+ * these card colours is about 2:1, so without the border the button's shape
+ * would be nearly invisible against the card (WCAG 1.4.11 wants 3:1 for the
+ * boundary of a control). White against every one of these fills is past 4.7:1,
+ * so the edge is what makes it a button you can see. */
+.account-card .action {
+  background: var(--navy);
+  color: #fff;
+  border: 2px solid #fff;
+  font-weight: 700;
+}
+
+.account-card .action:hover { background: color-mix(in srgb, var(--navy) 80%, #000); }
+
+/* On the credit card the title is yellow, not white. */
+.account-card.tone-credit h1,
+.account-card.tone-credit .account-card-balance { color: #facc15; }
+
+/* ------------------------------------------------- pickers and headings */
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s3);
+}
+
+.section-head h1 { margin: 0; }
+.open-another { margin-left: auto; width: auto; padding: var(--s2) var(--s3); }
+
+.picked-account {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-radius: 8px;
+  color: #fff;
+}
+
+.picked-account .balance { margin-left: auto; color: inherit; }
+
+/* A thin band of the selected account's colour under the dropdown, so the
+ * choice is not carried by the words alone. */
+.picked-strip { height: 6px; border-radius: 3px; margin-top: calc(var(--s1) * -1); }
+
+/* ------------------------------------------------------- admin dashboard */
+
+/* One button, because an admin holds no accounts and every other tile on the
+ * customer dashboard is about accounts. */
+.admin-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  width: 100%;
+  padding: var(--s4);
+  border-radius: 12px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.admin-cta:hover { background: #7d150f; }
+.admin-cta svg { width: 1.6rem; height: 1.6rem; }
+
+.audit-heading { font-size: 1.1rem; margin: var(--s4) 0 var(--s2); }
+
+/* ------------------------------------------------------- the ledger table */
+
+/* Room to breathe, and alternating rows. The stripe is what lets your eye carry
+ * a date on the left across to a balance on the right without losing the line -
+ * which is the whole job of this table. */
+.ledger {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--s3);
+}
+
+.ledger th, .ledger td { padding: var(--s2) var(--s3); text-align: left; }
+
+.ledger th {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  border-bottom: 2px solid var(--field-border);
+}
+
+.ledger tbody tr:nth-child(odd) { background: var(--stripe-a); }
+.ledger tbody tr:nth-child(even) { background: var(--stripe-b); }
+
+/* Money right-aligned and in tabular figures, so the columns line up on the
+ * decimal point whatever the amounts are. */
+.ledger td:nth-child(3), .ledger td:nth-child(4),
+.ledger th:nth-child(3), .ledger th:nth-child(4) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger td:nth-child(4) { font-weight: 700; }
+
+/* Credit and debit are never colour alone - the sign is already in the amount,
+ * and the type column says which it was in words. */
+/* Not --red: that token is 3.90:1 on the darker stripe, which is under AA.
+ * These two are computed against BOTH stripes and clear 4.9:1 on the worse one. */
+.ledger .credit { color: var(--ledger-credit); font-weight: 700; }
+.ledger .debit { color: var(--ledger-debit); font-weight: 700; }
+
+.pager { justify-content: space-between; align-items: center; margin-top: var(--s3); }
+
+/* ============================================================== dark mode
+
+   What actually changes: the surfaces go dark, the text goes light, and the
+   brand navy becomes cyan. Everything else is the same rules read through
+   different tokens, which is the whole reason the tokens exist.
+
+   The cyan splits in two, as light mode's navy does. --navy stays dark enough
+   that white text on the nav bar and the buttons still clears 4.5:1; only
+   --brand-ink and --blue get bright, because those are read AS text against a
+   dark surface. A single "make it cyan" would have broken one or the other.
+
+   Applied two ways: when the operating system asks for dark, and when the page
+   is explicitly set to it. The :not([data-theme="light"]) guard is what lets
+   somebody on a dark OS still choose light and be obeyed.
+*/
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+}
+
+:root[data-theme="dark"] { color-scheme: dark; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --navy: #0e7490;          /* 5.36:1 with white - nav, buttons */
+    --brand-ink: #22d3ee;     /* 8.67:1 on surface - headings */
+    --blue: #38bdf8;          /* 7.31:1 on surface - links */
+    --red: #f87171;           /* 5.66:1 on surface */
+    /* #9e1b13 as text on this surface is 1.95:1 - invisible, and the reason
+     * the staff pages were unreadable in dark mode. This is 8.25:1, and a
+     * shade off --red so an error still reads as an error next to it. */
+    --admin-ink: #fca5a5;     /* 8.25:1 on surface */
+    --admin-bg: #1b1316;
+    --admin-field-border: #a08582; /* 4.60:1 on surface */
+    --green: #4ade80;         /* 8.99:1 on surface */
+    --danger: #b3231a;
+
+    --bg: #0f1826;
+    --surface: #18233a;
+    --text: #e6edf3;          /* 13.26:1 on surface */
+    --muted: #a3b1c2;         /*  7.18:1 on surface */
+    --label: #cfd9e4;
+    --border: #2a3852;
+    --field-border: #6b7d94;  /*  3.72:1 on surface */
+
+    --hero-bg: #16304d;
+    --stripe-a: #14203a;
+    --stripe-b: #1b2840;
+    --ledger-credit: #4ade80;
+    --ledger-debit: #f87171;
+  --badge-bg: #4c1d24;
+  --badge-ink: #fecdd3;
+    --badge-bg: #4c1d24;
+    --badge-ink: #fecdd3;
+
+    --facet: rgb(34 211 238 / 10%);
+  }
+}
+
+/* The same block again for the explicit choice. Duplicated rather than
+ * combined because a media query and an attribute selector cannot share a
+ * selector list - the media query would swallow the attribute rule. */
+:root[data-theme="dark"] {
+  --navy: #0e7490;
+  --brand-ink: #22d3ee;
+  --blue: #38bdf8;
+  --red: #f87171;
+  --admin-ink: #fca5a5;          /* see the note in the media-query block above */
+  --admin-bg: #1b1316;
+  --admin-field-border: #a08582;
+  --green: #4ade80;
+  --danger: #b3231a;
+
+  --bg: #0f1826;
+  --surface: #18233a;
+  --text: #e6edf3;
+  --muted: #a3b1c2;
+  --label: #cfd9e4;
+  --border: #2a3852;
+  --field-border: #6b7d94;
+
+  --hero-bg: #16304d;
+  --stripe-a: #14203a;
+  --stripe-b: #1b2840;
+  --ledger-credit: #4ade80;
+  --ledger-debit: #f87171;
+  --badge-bg: #4c1d24;
+  --badge-ink: #fecdd3;
+
+  --facet: rgb(34 211 238 / 10%);
+}
+
+/* The theme button in the nav: an outline, so it never competes with Log out. */
+.theme-toggle {
+  min-height: 36px;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid rgb(255 255 255 / 55%);
+  border-radius: 4px;
+  background: transparent;
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.theme-toggle:hover { background: rgb(255 255 255 / 15%); }
+
+/* The way back is a button, centred under the pager, in the same navy as the
+ * header - not a bare link tucked under the table. */
+.back-link {
+  display: block;
+  width: fit-content;
+  margin: var(--s3) auto 0;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.back-link:hover { background: color-mix(in srgb, var(--navy) 80%, #000); }
+
+/* ------------------------------------------- the account colour bubble */
+
+/* Wraps whichever account you are acting on, in that account's colour. The
+ * select inside keeps a normal white field so the text in it stays readable -
+ * dark text on a saturated fill is the one thing these colours cannot carry. */
+.account-bubble {
+  padding: var(--s2) var(--s3);
+  border-radius: 10px;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 30%);
+}
+
+.bubble-label { color: #fff; font-weight: 700; }
+.bubble-label select { color: var(--text); background: var(--surface); }
+
+.bubble-single { display: flex; align-items: center; gap: var(--s3); font-size: 1.1rem; }
+.bubble-balance { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
+
+/* ------------------------------------------------- the confirm dialog */
+
+.confirm-account {
+  padding: var(--s2) var(--s3);
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  margin-bottom: var(--s3);
+}
+
+.confirm-rows { margin: 0 0 var(--s3); }
+
+.confirm-rows > div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  padding: var(--s1) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.confirm-rows dt { color: var(--label); font-weight: 600; }
+
+.confirm-rows dd {
+  margin: 0 0 0 auto;
+  font-weight: 700;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.confirm-rows .credit { color: var(--ledger-credit); }
+.confirm-rows .debit { color: var(--ledger-debit); }
+
+/* ------------------------------------------------------ the audit search */
+
+.audit-search { margin-bottom: var(--s2); }
+
+/* type="search" gets a clear button in some browsers and a different default
+ * font in others; this puts it back with every other field on the site. */
+.audit-search input {
+  font-size: 1rem;
+  font-family: inherit;
+  appearance: none;
+}
+
+.audit-more { margin-top: var(--s2); }
+
+/* The log can get long once it is all on screen, so it scrolls inside its own
+ * box rather than pushing the rest of the page away. */
+.admin-log { max-height: 26rem; overflow-y: auto; }

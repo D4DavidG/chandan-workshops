@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple Bank</title>
+    <script>
+      /* Runs before the first paint, so a dark-mode visitor never sees a white
+       * page flash first. It has to be inline and in <head>: a module in <body>
+       * loads after the browser has already painted.
+       *
+       * try/catch because localStorage throws rather than returning null in
+       * some private-browsing modes, and a theme preference is not worth a
+       * blank page. No stored value means follow the OS, which the CSS does on
+       * its own, so nothing is set. */
+      try {
+        var t = localStorage.getItem('bank.theme')
+        if (t === 'light' || t === 'dark') {
+          document.documentElement.setAttribute('data-theme', t)
+        }
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

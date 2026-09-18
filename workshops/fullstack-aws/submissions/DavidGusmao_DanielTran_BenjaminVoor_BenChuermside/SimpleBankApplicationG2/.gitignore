@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Secrets. `.env.example` IS committed; `.env` never is.
+.env
+.env.local
+*.pem
+*.key
+
+# AI customization files. AGENTS.md IS committed - it is the team's shared TODO
+# list, so it has to be in the repo everyone clones. Nothing is ignored here any
+# more - the heading stays so nobody re-adds the rule by habit.
+
+# MongoDB VS Code extension scratch playgrounds. These are personal scratch
+# files and they hold whatever you last pasted into them - including, easily, a
+# connection string. A real seeding script belongs in the repo under a name that
+# is not "playground".
+*.mongodb.js
+playground-*.mongodb
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-error.log*
+
+# Tooling
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

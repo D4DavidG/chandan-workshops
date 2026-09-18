@@ -1,0 +1,4 @@
+# script.pdf happens to contain no bytes that make Git guess "binary", so
+# core.autocrlf would rewrite its line endings on checkout and hand the next
+# person a PDF their reader refuses to open. Say so explicitly.
+*.pdf binary

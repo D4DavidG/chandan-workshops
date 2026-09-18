@@ -1,0 +1,573 @@
+Account section:
+
+Create Account
+    PATH: /api/auth/register
+    VERB: POST
+    DESCRIPTION: Creates a new account for a new user, and logs them in.
+                 The role is not read from the body. A body may carry adminCode,
+                 which is compared - in fixed time - against a value only the
+                 server has, and the new user is an ADMIN if it matches. With no
+                 code configured on the server, admin registration is shut and
+                 any adminCode is refused, so a deployment nobody set up cannot
+                 grow admins by accident.
+    INPUT:
+        name
+        email
+        password
+        adminCode (optional - makes the new user an ADMIN)
+    OUTPUT:
+        cookie
+    FAILURE STATES:
+        email already in use
+        adminCode was sent and is wrong, or no admin code is configured
+
+Login
+    VERB: POST
+    DESCRIPTION: logs a user in and creates a new cookie
+    INPUT
+        password
+        email
+    OUTPUT
+        cookie
+    FAILURE STATES:
+        wrong email or password
+
+Who am I
+    PATH: /api/auth/me
+    VERB: GET
+    DESCRIPTION: The frontend calls this on page load to decide whether a stored cookie
+                 is still good, instead of waiting for the first real call to fail.
+    INPUT
+        cookie
+    OUTPUT
+        UserView
+    FAILURE STATES:
+        invalid cookie
+
+Edit My Profile
+    PATH: /api/auth/me
+    VERB: POST
+    DESCRIPTION: changes the caller's own name, email, or both. Which user is
+                 edited comes from the cookie, never from the body, so there is
+                 no id here that could be pointed at somebody else.
+                 A field that is absent is left alone. A field that is present
+                 and blank is a 400 rather than a way to erase your own name.
+                 Role and password are not reachable from here: a profile edit
+                 that could set a role would be the privilege escalation that
+                 registration is careful to avoid.
+    INPUT
+        cookie
+        name (optional)
+        email (optional)
+    OUTPUT
+        UserView
+    FAILURE STATES:
+        invalid cookie
+        neither name nor email was sent
+        name or email was sent blank
+        that email belongs to somebody else
+    NOTES:
+        Email is the login identifier, so changing it changes what you log in
+        with. The old address stops working immediately.
+
+
+Health
+    PATH: /api/health
+    VERB: GET
+    DESCRIPTION: liveness check. No cookie needed. Used to confirm the server is
+                 up before a demo.
+    INPUT
+        (none)
+    OUTPUT
+        {
+            string status ("ok")
+        }
+    FAILURE STATES:
+        (none - if it does not answer, the server is down)
+
+
+Bank account
+
+Open Account
+    PATH: /api/accounts
+    VERB: POST
+    DESCRIPTION: opens a new bank account for the logged in user. The owner is
+                 taken from the cookie, not from the body, so a user cannot open
+                 an account in someone else's name. An admin may pass userId to
+                 open one on a customer's behalf.
+                 A non-zero openingBalance is posted as a real DEPOSIT
+                 transaction, so the ledger still adds up to the balance.
+    INPUT
+        cookie
+        accountType ("CHECKING", "SAVINGS" or "CREDIT")
+        openingBalance (optional, defaults to 0, integer cents)
+        userId (optional, admin only)
+    OUTPUT
+        AccountView
+    FAILURE STATES:
+        invalid cookie
+        unknown account type
+        openingBalance is not a valid amount
+        you are not an admin and asked to open the account for another user
+        the userId you named does not exist
+        the account would belong to an admin - an admin does not hold accounts,
+            so this is refused even when an admin asks for it for themselves
+
+Search People
+    PATH: /api/users/search?q=ben
+    VERB: GET
+    DESCRIPTION: people the caller could send money to, matched on name or
+                 email, case-insensitively. The caller is left out of their own
+                 results. A query shorter than two characters returns an empty
+                 list rather than most of the roster, and the answer is capped
+                 at ten.
+    INPUT
+        cookie
+        q (query string)
+    OUTPUT
+        List of UserView
+    FAILURE STATES:
+        invalid cookie
+    NOTES:
+        This is a customer-facing directory, and a real bank does not have one:
+        it is a list of its customers, and you pay an account number or a payee
+        you have already confirmed. It exists because a training project needs
+        somebody to pay and account numbers are not memorable. It would be the
+        first thing to remove if this were ever real.
+
+
+Transaction History
+    PATH: /api/accounts/{accountId}/transactions
+    VERB: GET
+    DESCRIPTION: the ledger for one account, newest entries in the page the
+                 caller asked for. Paginated from day one so the response shape
+                 never has to change later.
+    INPUT
+        cookie
+        accountId (in the path)
+        page (optional query, defaults to 1)
+        pageSize (optional query, defaults to 20, clamped to 1..100)
+        type (optional query - DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT)
+    OUTPUT
+        Page of TransactionView
+    FAILURE STATES:
+        invalid cookie
+        you do not own the account or the account does not exist
+    NOTES:
+        A page or pageSize that is not a number falls back to the default
+        rather than failing the request. The pageSize that comes back is the
+        one the server actually used, which may be smaller than the one asked
+        for.
+
+
+create transaction
+
+Deposit
+    PATH: /api/accounts/{accountId}/deposit
+    VERB: POST
+    DESCRIPTION: adds money to an account and writes one ledger entry.
+    INPUT
+        cookie
+        accountId (in the path)
+        amount (integer cents, e.g. 12500 for 125.00)
+        clientTxnId (optional - see IDEMPOTENCY below)
+    OUTPUT
+        {
+            TransactionView transaction,
+            AccountView account      (the new authoritative balance)
+        }
+    FAILURE STATES:
+        invalid cookie
+        you do not own the account or the account does not exist
+        amount is zero, negative, or is not a whole number of cents given as
+            a JSON integer (a float or a string is refused, not converted)
+        amount is over the per-transaction limit of 100000000 (1,000,000.00)
+        the account is frozen
+        this clientTxnId has already been used
+    NOTES:
+        The account is returned alongside the transaction on purpose. The client
+        must never add the amount to the balance it was holding - that is the
+        frontend doing money arithmetic, and it is wrong as soon as two tabs are
+        open.
+
+Withdraw
+    PATH: /api/accounts/{accountId}/withdraw
+    VERB: POST
+    DESCRIPTION: takes money out of an account and writes one ledger entry.
+    INPUT
+        cookie
+        accountId (in the path)
+        amount (integer cents)
+        clientTxnId (optional)
+    OUTPUT
+        {
+            TransactionView transaction,
+            AccountView account
+        }
+    FAILURE STATES:
+        invalid cookie
+        you do not own the account or the account does not exist
+        amount is invalid or over the per-transaction limit
+        the account is frozen
+        insufficient funds
+        this clientTxnId has already been used
+    NOTES:
+        The check is against availableForWithdrawal, not balance. Those are
+        the same number today, because no account type holds a minimum at the
+        moment. They stop being the same as soon as one does, so read
+        availableForWithdrawal from the account and do not assume the balance
+        is all reachable.
+
+Transfer
+    PATH: /api/transfers
+    VERB: POST
+    DESCRIPTION: moves money between two accounts. Both legs happen or neither
+                 does. Two ledger entries are written: a TRANSFER_OUT on the
+                 source and a TRANSFER_IN on the destination.
+                 Both account ids are in the body rather than one in the path,
+                 because a transfer is an operation on the pair.
+    INPUT
+        cookie
+        fromAccountId
+        toAccountId  (the destination account)
+        toUserId     (instead of toAccountId - the destination PERSON, whose
+                      primary account the server resolves. Exactly one of the
+                      two must be sent; sending both is a 400, because a
+                      mismatched pair would move money somewhere the caller did
+                      not name. This is what lets a client offer a name to pick
+                      rather than asking somebody to know an account number.)
+        amount (integer cents)
+        clientTxnId (optional)
+    OUTPUT
+        {
+            TransactionView debit,   (the TRANSFER_OUT leg)
+            TransactionView credit,  (the TRANSFER_IN leg)
+            AccountView account      (the source account, after the transfer)
+        }
+    FAILURE STATES:
+        invalid cookie
+        you do not own the source account, or it does not exist
+        the destination account does not exist
+        neither or both of toAccountId and toUserId were sent
+        the toUserId you named does not exist, or holds no active account
+        source and destination are the same account
+        either account is frozen
+        insufficient funds in the source account
+        amount is invalid or over the per-transaction limit
+        this clientTxnId has already been used
+    NOTES:
+        You must own the source. You do not have to own the destination - that
+        is the point of a transfer.
+
+
+Admin section
+
+    Every endpoint below requires a cookie belonging to a user whose role is
+    ADMIN. A logged-in customer hitting any of these gets "admin role required"
+    rather than a not-found, since the URL is no secret.
+    Admins are created by the seed, by another admin, or by registering with the
+    right adminCode - see Create Account. There is deliberately no way to ask for
+    the ADMIN role by naming it in a request body.
+
+List Users
+    PATH: /api/admin/users
+    VERB: GET
+    DESCRIPTION: every user in the system.
+    INPUT
+        cookie
+    OUTPUT
+        List of UserView
+    FAILURE STATES:
+        invalid cookie
+        you are not an admin
+
+List All Accounts
+    PATH: /api/admin/accounts
+    VERB: GET
+    DESCRIPTION: every account in the system, each with its owner's name.
+    INPUT
+        cookie
+    OUTPUT
+        List of AccountView
+    FAILURE STATES:
+        invalid cookie
+        you are not an admin
+
+Freeze / Unfreeze Account
+    PATH: /api/admin/accounts/{accountId}/freeze
+    VERB: POST
+    DESCRIPTION: freezes or unfreezes an account. A frozen account rejects all
+                 customer-initiated movement (deposit, withdraw, transfer in or
+                 out) but can still be read and still be adjusted by an admin.
+                 The desired state is sent explicitly rather than toggled, so
+                 retrying a request that may or may not have landed is safe.
+    INPUT
+        cookie
+        accountId (in the path)
+        frozen (true or false, defaults to true)
+        reason (required, at least 10 characters - goes in the audit log)
+    OUTPUT
+        AccountView
+    FAILURE STATES:
+        invalid cookie
+        you are not an admin
+        the account does not exist
+        reason is missing or shorter than 10 characters
+
+Adjust Balance
+    PATH: /api/admin/accounts/{accountId}/adjust
+    VERB: POST
+    DESCRIPTION: the only way an admin may change a balance. It posts a normal
+                 ledger entry tagged with the acting admin and a written reason,
+                 so balance == sum(ledger) still holds afterwards.
+                 There is no "set the balance to X" endpoint and there should
+                 never be one: a balance moved without a matching ledger entry
+                 breaks that invariant permanently, and afterwards there is no
+                 way to tell which of the two numbers was right.
+    INPUT
+        cookie
+        accountId (in the path)
+        amount (integer cents, always positive)
+        direction ("CREDIT" or "DEBIT")
+        reason (required, at least 10 characters)
+    OUTPUT
+        {
+            TransactionView transaction,
+            AccountView account
+        }
+    FAILURE STATES:
+        invalid cookie
+        you are not an admin
+        the account does not exist
+        amount is invalid or over the per-transaction limit
+        direction is not CREDIT or DEBIT
+        reason is missing or shorter than 10 characters
+        a DEBIT would take the balance below zero
+    NOTES:
+        A frozen account may be adjusted. Correcting an account is a normal
+        reason to have frozen it in the first place.
+
+Audit Log
+    PATH: /api/admin/audit
+    VERB: GET
+    DESCRIPTION: read-only record of who did what, to which account, and why.
+                 Every freeze, unfreeze and adjustment appends one row. Nothing
+                 removes a row.
+    INPUT
+        cookie
+    OUTPUT
+        List of AuditEntry
+    FAILURE STATES:
+        invalid cookie
+        you are not an admin
+
+Reconciliation Report
+    PATH: /api/admin/reconciliation
+    VERB: GET
+    DESCRIPTION: every account whose stored balance disagrees with the sum of
+                 its ledger. Should always be empty. This is the running proof
+                 that no code path has changed a balance without writing a
+                 matching entry, and it is the endpoint to open during the demo.
+    INPUT
+        cookie
+    OUTPUT
+        {
+            boolean balanced,
+            integer checked,
+            List of Discrepancy discrepancies
+        }
+    FAILURE STATES:
+        invalid cookie
+        you are not an admin
+
+
+Conventions
+
+    COOKIE
+        Sent on every authenticated call. Anything the docs above call a
+        "cookie" travels as an Authorization header:
+
+            Authorization: Bearer <token>
+
+        The token is a signed JWT: three base64url parts,
+        header.payload.signature, signed with HMAC-SHA256 by a key only the
+        server holds. The payload carries:
+
+            sub       the user id
+            username  the email, which is what this app logs in with
+            name      the display name
+            role      CUSTOMER or ADMIN
+            iat       issued at, Unix seconds
+            exp       expires at, Unix seconds
+
+        Base64 is encoding, not encryption, so a client can decode and read all
+        of that without any key - that is normal and intended. What it cannot do
+        is change any of it: editing the payload invalidates the signature, and
+        the server checks the signature before it reads a single claim. A bad
+        signature, an expired exp, or a token that is not three parts is a 401.
+
+        A token lasts one week, and expiresIn (seconds) comes back alongside it
+        at register and login.
+
+        DO NOT AUTHORIZE ON THE role CLAIM. The server does not. A JWT cannot
+        be cancelled once issued, so a user demoted after logging in still
+        holds a token that says ADMIN and still verifies. The server re-reads
+        the user from storage on every request and uses the stored role, so the
+        demotion takes effect immediately. The claim is there so a client can
+        show the right menu, not so anything can be decided by it.
+
+    MONEY IS AN INTEGER NUMBER OF CENTS
+        Every monetary field, in and out, is a whole number of cents sent as a
+        JSON integer. 1,234.56 is 123456. Twenty-five dollars is 2500. One cent
+        is 1.
+
+        Not "1234.56" and not 1234.56. A fractional JSON number becomes a float
+        the moment JSON.parse runs, which loses the exact cents the rest of the
+        system is careful about; an integer is exact up to 2^53, which is about
+        ninety trillion dollars in cents. The quoted-string form was the earlier
+        design and is no longer accepted - see AMOUNTS.
+
+        The frontend divides by 100 to display and never to calculate, and adds
+        grouping and a currency symbol at that point. "1,234.56" is the display
+        form and belongs in the browser.
+
+    AMOUNTS
+        Positive whole cents, at most 100000000 (1,000,000.00) per transaction.
+        Zero is not a valid amount.
+
+        Three forms are refused with a 400 rather than interpreted:
+
+            {"amount": 25.00}    a fractional number - already a float, and
+                                 ambiguous: 25 cents or 25 dollars?
+            {"amount": "2500"}   a string, even one holding digits
+            {"amount": "25.00"}  the old dollars-and-cents form
+
+        Guessing at any of these is a hundredfold error in one direction or the
+        other, so none of them is guessed at.
+
+    IDEMPOTENCY
+        Write endpoints (deposit, withdraw, transfer) accept an optional
+        clientTxnId. The client generates one id per submission attempt, so a
+        double-clicked button sends the same id twice and the second one is
+        refused instead of moving the money again. Reusing an id that has
+        already been accepted is a failure, not a silent no-op.
+
+    OWNERSHIP
+        An account that exists but belongs to somebody else reads as "does not
+        exist" rather than "not allowed". Saying "not allowed" would confirm the
+        account is real, which is the leak the not-found answer exists to
+        prevent. Admins may read any account.
+
+    DATES
+        ISO 8601 with a timezone: "2026-09-15T14:03:11.482913+00:00".
+
+    ERRORS
+        Every failure, at every endpoint, answers with the same shape:
+
+            { string error }
+
+        The message is meant for a developer, not for display to a customer.
+
+
+Object docs
+
+AccountView
+    {
+        string name,
+        integer money (in cents)
+        string accountType
+    }
+
+AccountView (as the server actually sends it)
+    {
+        integer accountId,
+        integer userId,
+        string userName,                (only when the owner is to hand)
+        string accountType,             ("CHECKING", "SAVINGS" or "CREDIT")
+        string status,                  ("ACTIVE" or "FROZEN")
+        integer balance,                (cents - 123456 is 1,234.56)
+        integer availableForWithdrawal, (cents - balance minus any minimum)
+        integer minimumBalance,         (cents - 0 for both types at present)
+        string createdAt
+    }
+    The money fields are cents, matching the "integer money (in cents)" in the
+    sketch above. Divide by 100 to display, never to calculate.
+
+    availableForWithdrawal is sent alongside balance because the two are not the
+    same idea, even while they hold the same number. No account type keeps a
+    minimum today, so they are equal; a client that treated that as permanent and
+    offered the balance as withdrawable would be wrong the day one does.
+    Read availableForWithdrawal, and the rule stays in one place - the account
+    class - rather than being copied into the frontend.
+
+UserView
+    {
+        integer userId,
+        string name,
+        string email,
+        string role,                   ("CUSTOMER" or "ADMIN")
+        string createdAt
+    }
+    There is no password field here and there never will be one. Fields are
+    named explicitly rather than dumped from the object, so a column added later
+    stays invisible to the API until somebody deliberately adds it to this list.
+
+TransactionView
+    {
+        integer txnId,
+        integer accountId,
+        string type,                   (DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT)
+        integer amount,                (cents, always positive - sign is in type)
+        integer signedAmount,          (cents - -4000 for a 40.00 debit)
+        string direction,              ("CREDIT" or "DEBIT")
+        string clientTxnId,            (may be null)
+        string createdAt
+    }
+    Entries are never edited and never deleted. A correction is a new entry in
+    the opposite direction. signedAmount is included so a client can total a
+    page without re-deriving which types count as credits.
+
+Page
+    {
+        List items,                    (of whatever the endpoint returns)
+        integer page,
+        integer pageSize,              (what the server used, not what was asked)
+        integer total,                 (matching rows, not rows on this page)
+        integer totalPages
+    }
+    The list is inside an envelope from the start. Adding pagination later
+    changes the response shape and breaks every client that consumed a bare
+    array; the cost of doing it now is one word of nesting.
+
+AuditEntry
+    {
+        integer actorUserId,           (the admin who did it)
+        string actorName,              (their name, or null if it cannot be resolved)
+        string action,                 (FREEZE, UNFREEZE, ADJUST_CREDIT, ADJUST_DEBIT)
+        integer accountId,
+        string accountOwnerName,       (whose account it was, or null)
+        string reason,
+        string createdAt
+    }
+    The names are captions on the ids, not replacements for them: both are
+    always sent. "user #28 froze account #31" is a sentence you have to look
+    two things up to understand, and an audit log nobody reads is not doing
+    the job it exists for.
+
+    Either name may be null. A row outlives the records it names - an account
+    closed since, a user removed - and a log that failed to load because one
+    caption was missing would be worse than one with a gap in it.
+
+Discrepancy
+    {
+        integer accountId,
+        integer balance,               (cents - what the account says)
+        integer ledgerSum              (cents - what its transactions add up to)
+    }
+    Both are integers, so the comparison behind this list is exact. There is no
+    rounding tolerance and none is needed.
+
+Error
+    {
+        string error
+    }
